@@ -7,6 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { composeHinglishReview, TOPICS, type Rating, type TopicId } from "@/lib/hinglish-review";
 
+const MIN_RATING = 3;
+
 function StarRatingBar({
   value,
   onChange,
@@ -18,7 +20,7 @@ function StarRatingBar({
   const shown = hover ?? value;
 
   function move(next: number) {
-    onChange(Math.min(5, Math.max(1, next)) as Rating);
+    onChange(Math.min(5, Math.max(MIN_RATING, next)) as Rating);
   }
 
   return (
@@ -42,6 +44,7 @@ function StarRatingBar({
           }}
         >
           {[1, 2, 3, 4, 5].map((star) => {
+            const allowed = star >= MIN_RATING;
             const filled = star <= shown;
             const selected = star === value;
             return (
@@ -50,20 +53,38 @@ function StarRatingBar({
                 type="button"
                 role="radio"
                 aria-checked={selected}
-                aria-label={`${star} star${star === 1 ? "" : "s"}`}
+                aria-disabled={!allowed}
+                disabled={!allowed}
+                aria-label={
+                  allowed
+                    ? `${star} stars`
+                    : `${star} stars, not available. Minimum is 3 stars`
+                }
                 tabIndex={selected ? 0 : -1}
-                className="flex h-10 flex-1 items-center justify-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
-                onMouseEnter={() => setHover(star as Rating)}
-                onFocus={() => setHover(star as Rating)}
+                className={
+                  allowed
+                    ? "flex h-10 flex-1 items-center justify-center rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                    : "flex h-10 flex-1 cursor-not-allowed items-center justify-center rounded-md"
+                }
+                onMouseEnter={() => {
+                  if (allowed) setHover(star as Rating);
+                }}
+                onFocus={() => {
+                  if (allowed) setHover(star as Rating);
+                }}
                 onBlur={() => setHover(null)}
-                onClick={() => onChange(star as Rating)}
+                onClick={() => {
+                  if (allowed) onChange(star as Rating);
+                }}
               >
                 <Star
                   aria-hidden
                   className={
                     filled
                       ? "size-7 fill-[#F5B800] text-[#F5B800]"
-                      : "size-7 fill-transparent text-zinc-300"
+                      : allowed
+                        ? "size-7 fill-transparent text-zinc-300"
+                        : "size-7 fill-transparent text-zinc-200"
                   }
                 />
               </button>
@@ -72,12 +93,21 @@ function StarRatingBar({
         </div>
         <span className="pr-2 text-sm font-medium text-neutral-700">{value}/5</span>
       </div>
+      <p className="text-xs text-[#6b7280]">Choose 3, 4, or 5 stars.</p>
     </div>
   );
 }
 
 const BUSINESS_NAME = "Mom Trading Company";
 const GOOGLE_BUSINESS_LINK = "https://share.google/IVWpvg4b0PeemnYPv";
+
+const POST_STEPS = [
+  "Copy the review. The button below copies it for you.",
+  "The Mom Trading Google page opens in a new tab.",
+  "Sign in with Google if it asks.",
+  "Find Reviews and tap Write a review.",
+  "Pick the same stars, paste the review, and tap Post.",
+];
 
 export function SimpleReview() {
   const [topics, setTopics] = useState<TopicId[]>([]);
@@ -104,14 +134,30 @@ export function SimpleReview() {
   }
 
   async function copyReview() {
-    if (!review) return;
+    if (!review) return false;
     try {
       await navigator.clipboard.writeText(review);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
+      return true;
     } catch {
       setCopied(false);
+      return false;
     }
+  }
+
+  async function openGooglePage() {
+    if (!review) {
+      setError("Generate a review first, then open Google.");
+      return;
+    }
+    const didCopy = await copyReview();
+    if (!didCopy) {
+      setError("Copy the review first, then open the Google page.");
+      return;
+    }
+    setError("");
+    window.open(GOOGLE_BUSINESS_LINK, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -202,16 +248,26 @@ export function SimpleReview() {
         </div>
 
         <div className="rounded-lg border border-[#d9dff0] bg-white px-3 py-3">
-          <p className="text-sm font-medium text-[#27315e]">Mom Trading on Google</p>
-          <p className="mt-1 break-all text-sm text-[#4b5563]">{GOOGLE_BUSINESS_LINK}</p>
-          <a
-            href={GOOGLE_BUSINESS_LINK}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-lg bg-[#27315e] px-4 text-sm font-medium text-white hover:bg-[#1f2749] sm:w-auto"
+          <p className="text-sm font-medium text-[#27315e]">Before the Google page opens</p>
+          <ol className="mt-3 flex flex-col gap-2">
+            {POST_STEPS.map((step, index) => (
+              <li key={step} className="flex gap-2.5 text-sm leading-6 text-[#374151]">
+                <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[#27315e] text-xs font-medium text-white">
+                  {index + 1}
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="mt-3 break-all text-xs text-[#6b7280]">{GOOGLE_BUSINESS_LINK}</p>
+          <Button
+            type="button"
+            className="mt-3 h-10 w-full bg-[#27315e] text-white hover:bg-[#1f2749] sm:w-auto"
+            onClick={openGooglePage}
+            disabled={!review}
           >
-            Open Google Business page
-          </a>
+            Copy and open Google page
+          </Button>
         </div>
       </div>
       </main>
